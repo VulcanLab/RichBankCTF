@@ -8,7 +8,7 @@ echo "================================================"
 if ! nc -z localhost 8545 2>/dev/null; then
     echo "❌ Anvil not running!"
     echo "Please start Anvil first:"
-    echo "  anvil --accounts 20"
+    echo "  anvil --accounts 100"
     exit 1
 fi
 
