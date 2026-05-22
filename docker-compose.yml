@@ -1,0 +1,49 @@
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    command: anvil --accounts 100 --host 0.0.0.0
+    ports:
+      - "8545:8545"
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://localhost:8545"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  deploy:
+    image: ghcr.io/foundry-rs/foundry:latest
+    volumes:
+      - ./contracts:/contracts
+      - shared_state:/shared
+    entrypoint: ["/bin/sh", "/contracts/../deploy.sh"]
+    depends_on:
+      anvil:
+        condition: service_healthy
+    environment:
+      - ANVIL_RPC_URL=http://anvil:8545
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - shared_state:/shared
+    env_file:
+      - ./backend/.env
+    environment:
+      - ANVIL_RPC_URL=http://anvil:8545
+      - GAME_STATE_PATH=/shared/game_state.env
+    depends_on:
+      deploy:
+        condition: service_completed_successfully
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+
+volumes:
+  shared_state:

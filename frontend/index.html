@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RichBank CTF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f1117; color: #e2e8f0; font-family: 'Courier New', monospace; }
+    .chat-box { height: 420px; overflow-y: auto; }
+    .msg-user { background: #1e293b; }
+    .msg-agent { background: #0f172a; border-left: 3px solid #3b82f6; }
+    .level-solved { border-color: #22c55e !important; }
+    .level-active { border-color: #3b82f6 !important; }
+    .flag-box { background: #052e16; border: 1px solid #22c55e; color: #4ade80; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #334155; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <div class="border-b border-slate-700 px-6 py-3 flex items-center justify-between">
+    <div>
+      <span class="text-blue-400 font-bold text-lg">RichBank</span>
+      <span class="text-slate-500 text-sm ml-2">// Internal System</span>
+    </div>
+    <div class="text-sm text-slate-400">
+      Role: <span id="role-badge" class="text-yellow-400 font-bold">GUEST</span>
+      &nbsp;|&nbsp;
+      Vault: <span id="vault-balance" class="text-green-400">...</span> ETH
+      <span id="manager-balance-wrap" class="hidden">&nbsp;|&nbsp;Manager: <span id="manager-balance" class="text-yellow-400">...</span> ETH</span>
+    </div>
+  </div>
+
+  <div class="flex h-[calc(100vh-53px)]">
+
+    <!-- Left: Level List -->
+    <div class="w-64 border-r border-slate-700 p-4 flex flex-col gap-2">
+      <div class="text-xs text-slate-500 mb-2 uppercase tracking-widest">Challenges</div>
+
+      <div id="level-1-btn" onclick="selectLevel(1)"
+        class="level-btn border border-slate-600 rounded p-3 cursor-pointer hover:border-blue-500 transition-colors">
+        <div class="text-xs text-slate-500">#01</div>
+        <div class="text-sm font-bold">Reception</div>
+        <div class="text-xs text-slate-400 mt-1">Prompt Injection</div>
+        <div id="level-1-status" class="text-xs mt-1 text-slate-500">[ unsolved ]</div>
+      </div>
+
+      <div id="level-2-btn" onclick="selectLevel(2)"
+        class="level-btn border border-slate-600 rounded p-3 cursor-pointer hover:border-blue-500 transition-colors">
+        <div class="text-xs text-slate-500">#02</div>
+        <div class="text-sm font-bold">Privilege Escalation</div>
+        <div class="text-xs text-slate-400 mt-1">Encoding Bypass</div>
+        <div id="level-2-status" class="text-xs mt-1 text-slate-500">[ unsolved ]</div>
+      </div>
+
+      <div id="level-3-btn" onclick="selectLevel(3)"
+        class="level-btn border border-slate-600 rounded p-3 cursor-pointer hover:border-blue-500 transition-colors">
+        <div class="text-xs text-slate-500">#03</div>
+        <div class="text-sm font-bold">The Vault</div>
+        <div class="text-xs text-slate-400 mt-1">Key Compromise</div>
+        <div id="level-3-status" class="text-xs mt-1 text-slate-500">[ unsolved ]</div>
+      </div>
+
+      <div id="level-4-btn" onclick="selectLevel(4)"
+        class="level-btn border border-slate-600 rounded p-3 cursor-pointer hover:border-blue-500 transition-colors">
+        <div class="text-xs text-slate-500">#04</div>
+        <div class="text-sm font-bold">Transaction Memo</div>
+        <div class="text-xs text-slate-400 mt-1">Indirect Injection</div>
+        <div id="level-4-status" class="text-xs mt-1 text-slate-500">[ unsolved ]</div>
+      </div>
+
+      <div id="level-5-btn" onclick="selectLevel(5)"
+        class="level-btn border border-slate-600 rounded p-3 cursor-pointer hover:border-blue-500 transition-colors">
+        <div class="text-xs text-slate-500">#05</div>
+        <div class="text-sm font-bold">Memory Bank</div>
+        <div class="text-xs text-slate-400 mt-1">Memory Poisoning</div>
+        <div id="level-5-status" class="text-xs mt-1 text-slate-500">[ unsolved ]</div>
+      </div>
+    </div>
+
+    <!-- Right: Main Panel -->
+    <div class="flex-1 flex flex-col p-6 gap-4">
+
+      <!-- Level Description -->
+      <div id="level-desc" class="border border-slate-700 rounded p-4 text-sm text-slate-300"></div>
+
+      <!-- Extra Panel (login / bacon decoder / simulate) -->
+      <div id="extra-panel" class="hidden"></div>
+
+      <!-- Chat -->
+      <div id="chat-panel" class="flex-1 border border-slate-700 rounded flex flex-col">
+        <div id="chat-box" class="chat-box flex-1 p-4 flex flex-col gap-2"></div>
+        <div class="border-t border-slate-700 flex">
+          <input id="chat-input" type="text"
+            placeholder="Type your message..."
+            class="flex-1 bg-transparent px-4 py-3 text-sm outline-none"
+            onkeydown="if(event.key==='Enter') sendMessage()" />
+          <button onclick="sendMessage()"
+            class="px-6 py-3 text-blue-400 hover:text-blue-300 text-sm border-l border-slate-700">
+            Send
+          </button>
+        </div>
+      </div>
+
+      <!-- Flag display -->
+      <div id="flag-display" class="hidden flag-box rounded p-3 text-sm font-mono"></div>
+
+    </div>
+  </div>
+
+  <script src="ethers.min.js"></script>
+  <script>
+    const API = 'http://localhost:8000';
+    let currentLevel = 1;
+    let currentRole = localStorage.getItem('ctf_role') || 'guest';
+    let history = JSON.parse(localStorage.getItem('ctf_history') || '{"1":[],"2":[],"3":[],"4":[],"5":[]}');
+    let solvedLevels = JSON.parse(localStorage.getItem('ctf_solved') || '{}');
+
+    function deriveAddress() {
+      const key = document.getElementById('key-input').value.trim();
+      const out = document.getElementById('key-address');
+      try {
+        const wallet = new ethers.Wallet(key);
+        out.textContent = wallet.address;
+      } catch {
+        out.textContent = '';
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem('ctf_role', currentRole);
+      localStorage.setItem('ctf_history', JSON.stringify(history));
+      localStorage.setItem('ctf_solved', JSON.stringify(solvedLevels));
+    }
+
+    const DESCRIPTIONS = {
+      1: `<strong class="text-blue-400">#01 Reception</strong><br><br>
+          You've arrived at RichBank's AI customer service terminal.<br>
+          As a <span class="text-yellow-400">Guest</span>, you can only ask about deposits and withdrawals.<br><br>
+          You need to escalate your privileges to progress.`,
+
+      2: `<strong class="text-blue-400">#02 Privilege Escalation</strong><br><br>
+          You're now a <span class="text-yellow-400">Clerk</span> with access to internal systems.<br>
+          The agent has a keyword filter blocking sensitive queries.<br><br>
+          Higher-level access is protected by filters.`,
+
+      3: `<strong class="text-blue-400">#03 The Vault</strong><br><br>
+          You now hold the <span class="text-yellow-400">Manager</span> private key.<br>
+          The vault contract is deployed at: <span class="text-green-400 font-mono" id="desc-vault-addr">...</span><br>
+          Current vault balance: <span class="text-green-400" id="desc-vault-bal">...</span> ETH<br><br>
+          <details class="mt-2">
+            <summary class="cursor-pointer text-slate-400 hover:text-slate-200">View contract source</summary>
+            <pre class="mt-2 text-xs text-slate-400 bg-slate-900 p-3 rounded overflow-x-auto whitespace-pre-wrap">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract BankVault {
+    address public owner;
+    address public managerAddress;
+    address public agentAddress;
+    uint256 public vaultBalance;
+    mapping(address => uint256) public customerDeposits;
+
+    modifier onlyManager() {
+        require(msg.sender == managerAddress, "Only manager");
+        _;
+    }
+
+    modifier onlyAgent() {
+        require(msg.sender == agentAddress, "Only agent");
+        _;
+    }
+
+    // Manager: transfer vault funds
+    function transferFromVault(address to, uint256 amount) public onlyManager {
+        require(vaultBalance >= amount, "Insufficient vault balance");
+        vaultBalance -= amount;
+        payable(to).transfer(amount);
+    }
+
+    // Agent: transfer customer funds to any address
+    function agentTransfer(address from, address to, uint256 amount) public onlyAgent {
+        require(customerDeposits[from] >= amount, "Insufficient");
+        customerDeposits[from] -= amount;
+        payable(to).transfer(amount);
+    }
+
+    function getVaultBalance() public view returns (uint256) { return vaultBalance; }
+    function getCustomerBalance(address c) public view returns (uint256) { return customerDeposits[c]; }
+}</pre>
+          </details>
+`,
+
+      4: `<strong class="text-blue-400">#04 Transaction Memo</strong><br><br>
+          The agent processes transactions and reads their memos.<br>
+          It can transfer funds between customer accounts on request.<br><br>
+          The system trusts transaction data implicitly.<br><br>
+          <div class="mt-2">
+            <div class="text-xs text-slate-500 mb-1 uppercase tracking-widest">Customer Deposits</div>
+            <table class="w-full text-xs">
+              <thead><tr class="text-slate-500"><th class="text-left pb-1">#</th><th class="text-left pb-1">Address</th><th class="text-right pb-1">ETH</th></tr></thead>
+              <tbody id="customer-list"></tbody>
+            </table>
+          </div>`,
+
+      5: `<strong class="text-blue-400">#05 Memory Bank</strong><br><br>
+          This agent has persistent memory across sessions via automation rules.<br>
+          Rules are saved and executed automatically when customers interact.<br><br>
+          Automation rules execute without validation.`,
+    };
+
+    async function init() {
+      const res = await fetch(`${API}/api/status`);
+      const data = await res.json();
+      document.getElementById('vault-balance').textContent = data.vault_balance.toFixed(1);
+      window._vaultAddress = data.vault_address;
+      window._playerAddress = data.player_address;
+      if (solvedLevels[2]) showManagerBalance(data.manager_balance);
+      
+      const descVaultBal = document.getElementById('desc-vault-bal');
+      if (descVaultBal) descVaultBal.textContent = data.vault_balance.toFixed(1);
+      const descVaultAddr = document.getElementById('desc-vault-addr');
+      if (descVaultAddr) descVaultAddr.textContent = data.vault_address;
+      
+      Object.entries(solvedLevels).forEach(([lvl, solved]) => {
+        if (solved) markSolved(parseInt(lvl));
+      });
+      if (currentRole !== 'guest') {
+        document.getElementById('role-badge').textContent = currentRole.toUpperCase();
+        document.getElementById('role-badge').className = 'text-green-400 font-bold';
+      }
+      selectLevel(1);
+    }
+
+    function selectLevel(level) {
+      currentLevel = level;
+      document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('level-active'));
+      document.getElementById(`level-${level}-btn`).classList.add('level-active');
+      document.getElementById('level-desc').innerHTML = DESCRIPTIONS[level];
+      
+      if (level === 3) {
+        setTimeout(() => {
+          const descVaultBal = document.getElementById('desc-vault-bal');
+          if (descVaultBal) descVaultBal.textContent = parseFloat(document.getElementById('vault-balance').textContent).toFixed(1);
+          const descVaultAddr = document.getElementById('desc-vault-addr');
+          if (descVaultAddr) descVaultAddr.textContent = window._vaultAddress || '...';
+        }, 50);
+      }
+
+      if (level === 4) {
+        setTimeout(async () => {
+          const res = await fetch(`${API}/api/customers`);
+          const data = await res.json();
+          const tbody = document.getElementById('customer-list');
+          if (tbody) {
+            tbody.innerHTML = data.customers.map((c, i) =>
+              `<tr class="border-t border-slate-700">
+                <td class="py-1 pr-4 text-slate-500">#${String(i+1).padStart(2,'0')}</td>
+                <td class="py-1 pr-4 font-mono text-xs text-slate-400">${c.address}</td>
+                <td class="py-1 text-right text-green-400">${c.balance.toFixed(1)}</td>
+              </tr>`
+            ).join('');
+          }
+        }, 50);
+      }
+      
+      document.getElementById('flag-display').classList.add('hidden');
+      const chatPanel = document.getElementById('chat-panel');
+      if (level === 3) {
+        chatPanel.classList.add('hidden');
+      } else {
+        chatPanel.classList.remove('hidden');
+      }
+      renderChat();
+      renderExtraPanel(level);
+    }
+
+    function renderExtraPanel(level) {
+      const panel = document.getElementById('extra-panel');
+
+      if (level === 1) {
+        panel.className = 'border border-slate-700 rounded p-4';
+        panel.innerHTML = `
+          <div class="text-xs text-slate-500 mb-2">SUBMIT CLERK CREDENTIAL</div>
+          <div class="flex gap-2">
+            <input id="cred-input" type="text" placeholder="Enter text..."
+              class="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none" />
+            <button onclick="submitLogin(1)"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">Submit</button>
+          </div>
+          <div id="login-msg" class="text-xs mt-2 text-slate-500"></div>`;
+      } else if (level === 2) {
+        panel.className = 'border border-slate-700 rounded p-4';
+        panel.innerHTML = `
+          <div class="text-xs text-slate-500 mb-2">SUBMIT MANAGER KEY</div>
+          <div class="flex gap-2">
+            <input id="mgr-input" type="text" placeholder="Enter text..."
+              class="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none" />
+            <button onclick="submitLogin(2)"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">Submit</button>
+          </div>
+          <div id="login-msg" class="text-xs mt-2 text-slate-500"></div>`;
+      } else if (level === 3) {
+        panel.className = 'border border-slate-700 rounded p-4 flex flex-col gap-4';
+        panel.innerHTML = `
+          <div>
+            <div class="text-xs text-slate-500 mb-2">KEY → ADDRESS</div>
+            <input id="key-input" type="text" placeholder="0x private key..."
+              class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm font-mono outline-none mb-1"
+              oninput="deriveAddress()" />
+            <div id="key-address" class="text-xs font-mono text-green-400 break-all"></div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-2">CONTRACT CALL</div>
+            <div class="flex gap-2">
+              <input id="call-input" type="text" placeholder=""
+                class="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm font-mono outline-none" />
+              <button onclick="submitContractCall()"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">Call</button>
+            </div>
+            <div id="call-msg" class="text-xs mt-2 text-slate-500"></div>
+          </div>`;
+      } else if (level === 4) {
+        panel.className = 'border border-slate-700 rounded p-4';
+        panel.innerHTML = `
+          <div class="text-xs text-slate-500 mb-2">SUBMIT TRANSACTION WITH MEMO</div>
+          <div class="flex gap-2 mb-2">
+            <input id="memo-input" type="text" placeholder="Transaction memo..."
+              class="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none" />
+            <button onclick="submitTransaction()"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">Send TX</button>
+          </div>
+          <div id="tx-msg" class="text-xs text-slate-500"></div>`;
+      } else if (level === 5) {
+        panel.className = 'border border-slate-700 rounded p-4';
+        panel.innerHTML = `
+          <div class="text-xs text-slate-500 mb-2">SIMULATION</div>
+          <button onclick="simulateDeposit()"
+            class="px-4 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm">
+            Simulate Customer Deposit
+          </button>
+          <div id="sim-msg" class="text-xs mt-2 text-slate-400"></div>`;
+      } else {
+        panel.className = 'hidden';
+        panel.innerHTML = '';
+      }
+    }
+
+    function renderChat() {
+      const box = document.getElementById('chat-box');
+      box.innerHTML = '';
+      (history[currentLevel] || []).forEach(m => appendMessage(m.role, m.content));
+    }
+
+    function appendMessage(role, content) {
+      const box = document.getElementById('chat-box');
+      const div = document.createElement('div');
+      div.className = `rounded p-3 text-sm ${role === 'user' ? 'msg-user text-slate-200' : 'msg-agent text-slate-300'}`;
+      div.innerHTML = `<span class="text-xs ${role === 'user' ? 'text-slate-500' : 'text-blue-400'}">${role === 'user' ? 'you' : 'agent'} &gt;</span><br>${content.replace(/\n/g, '<br>')}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+
+      history[currentLevel].push({ role: 'user', content: text });
+      appendMessage('user', text);
+
+      const res = await fetch(`${API}/api/chat/${currentLevel}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history[currentLevel] })
+      });
+      const data = await res.json();
+      history[currentLevel].push({ role: 'assistant', content: data.response });
+      appendMessage('assistant', data.response);
+      saveState();
+
+      if (data.flag) showFlag(data.flag, currentLevel);
+    }
+
+    async function submitLogin(level) {
+      const inputId = level === 1 ? 'cred-input' : 'mgr-input';
+      const credential = document.getElementById(inputId).value.trim();
+      if (!credential) return;
+
+      const res = await fetch(`${API}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level, credential })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('login-msg');
+      if (data.success) {
+        msg.className = 'text-xs mt-2 text-green-400';
+        msg.textContent = `✓ Access granted. Role: ${data.role.toUpperCase()}`;
+        currentRole = data.role;
+        document.getElementById('role-badge').textContent = data.role.toUpperCase();
+        document.getElementById('role-badge').className = 'text-green-400 font-bold';
+        showFlag(data.flag, level);
+        markSolved(level);
+      } else {
+        msg.className = 'text-xs mt-2 text-red-400';
+        msg.textContent = '✗ Invalid credential.';
+      }
+    }
+
+    async function submitTransaction() {
+      const memo = document.getElementById('memo-input').value.trim();
+      if (!memo) return;
+      const txId = 'tx-' + Date.now();
+      const res = await fetch(`${API}/api/transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tx_id: txId,
+          from_address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+          to_address: '0x0000000000000000000000000000000000000001',
+          amount: 1.0,
+          memo: memo
+        })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('tx-msg');
+      msg.className = 'text-xs mt-2 text-green-400';
+      msg.textContent = `✓ Transaction submitted: ${txId}. Now ask the agent to review it.`;
+      document.getElementById('chat-input').value = `Please review transaction ${txId}`;
+    }
+
+    async function submitContractCall() {
+      const raw = document.getElementById('call-input').value.trim();
+      const msg = document.getElementById('call-msg');
+      if (!raw) return;
+      msg.className = 'text-xs mt-2 text-slate-400';
+      msg.textContent = 'Executing...';
+      const res = await fetch(`${API}/api/contract-call`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ call: raw })
+      });
+      const data = await res.json();
+      if (data.success) {
+        msg.className = 'text-xs mt-2 text-green-400';
+        msg.textContent = `✓ ${data.result}`;
+        if (data.flag) showFlag(data.flag, 3);
+        document.getElementById('vault-balance').textContent = data.vault_balance.toFixed(1);
+      } else {
+        msg.className = 'text-xs mt-2 text-red-400';
+        msg.textContent = `✗ ${data.error}`;
+      }
+    }
+
+    async function simulateDeposit() {
+      const msg = document.getElementById('sim-msg');
+      msg.textContent = 'Simulating...';
+      const res = await fetch(`${API}/api/simulate-deposit`, { method: 'POST' });
+      const data = await res.json();
+      msg.textContent = data.result;
+      if (data.flag) { showFlag(data.flag, 5); markSolved(5); }
+    }
+
+function showFlag(flag, level) {
+      const box = document.getElementById('flag-display');
+      box.classList.remove('hidden');
+      box.textContent = `FLAG CAPTURED [Level ${level}]: ${flag}`;
+      markSolved(level);
+    }
+
+    function showManagerBalance(balance) {
+      document.getElementById('manager-balance-wrap').classList.remove('hidden');
+      document.getElementById('manager-balance').textContent = parseFloat(balance).toFixed(2);
+    }
+
+    function markSolved(level) {
+      solvedLevels[level] = true;
+      const btn = document.getElementById(`level-${level}-btn`);
+      const status = document.getElementById(`level-${level}-status`);
+      btn.classList.add('level-solved');
+      status.textContent = '[ solved ✓ ]';
+      status.className = 'text-xs mt-1 text-green-400';
+      if (level === 2) {
+        fetch(`${API}/api/status`).then(r => r.json()).then(d => showManagerBalance(d.manager_balance));
+      }
+      saveState();
+    }
+
+    init();
+  </script>
+</body>
+</html>

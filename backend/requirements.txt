@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+langgraph
+langchain-openai
+langchain-anthropic
+web3
+python-dotenv
+eth-account
