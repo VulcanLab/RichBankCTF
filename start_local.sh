@@ -127,6 +127,5 @@ echo ""
 echo "🚀 Starting backend server..."
 echo ""
 
-# 启动 backend (使用 .env.local)
-export $(cat .env.local | xargs)
+# 启动 backend (config.py 自動讀取 .env.local)
 uvicorn main:app --reload --host 0.0.0.0 --port 8000

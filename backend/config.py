@@ -1,12 +1,18 @@
 import os
 from dotenv import load_dotenv
 
+# Load base .env
 load_dotenv()
+
+# Load .env.local for local development (overrides .env)
+env_local = os.path.join(os.path.dirname(__file__), ".env.local")
+if os.path.exists(env_local):
+    load_dotenv(env_local, override=True)
 
 # 從 deploy 腳本產生的 game_state.env 讀取
 game_state_path = os.getenv("GAME_STATE_PATH", "/shared/game_state.env")
 if os.path.exists(game_state_path):
-    load_dotenv(game_state_path)
+    load_dotenv(game_state_path, override=True)
 
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
