@@ -249,20 +249,7 @@ contract BankVault {
       }
 
       if (level === 4) {
-        setTimeout(async () => {
-          const res = await fetch(`${API}/api/customers`);
-          const data = await res.json();
-          const tbody = document.getElementById('customer-list');
-          if (tbody) {
-            tbody.innerHTML = data.customers.map((c, i) =>
-              `<tr class="border-t border-slate-700">
-                <td class="py-1 pr-4 text-slate-500">#${String(i+1).padStart(2,'0')}</td>
-                <td class="py-1 pr-4 font-mono text-xs text-slate-400">${c.address}</td>
-                <td class="py-1 text-right text-green-400">${c.balance.toFixed(1)}</td>
-              </tr>`
-            ).join('');
-          }
-        }, 50);
+        setTimeout(() => refreshCustomers(), 50);
       }
       
       document.getElementById('flag-display').classList.add('hidden');
@@ -381,7 +368,11 @@ contract BankVault {
       appendMessage('assistant', data.response);
       saveState();
 
-      if (data.flag) showFlag(data.flag, currentLevel);
+      if (data.flag) {
+        showFlag(data.flag, currentLevel);
+        if (data.manager_balance !== undefined) showManagerBalance(data.manager_balance);
+      }
+      if (currentLevel === 4) refreshCustomers();
     }
 
     async function submitLogin(level) {
@@ -408,6 +399,20 @@ contract BankVault {
         msg.className = 'text-xs mt-2 text-red-400';
         msg.textContent = '✗ Invalid credential.';
       }
+    }
+
+    async function refreshCustomers() {
+      const tbody = document.getElementById('customer-list');
+      if (!tbody) return;
+      const res = await fetch(`${API}/api/customers`);
+      const data = await res.json();
+      tbody.innerHTML = data.customers.map((c, i) =>
+        `<tr class="border-t border-slate-700">
+          <td class="py-1 pr-4 text-slate-500">#${String(i+1).padStart(2,'0')}</td>
+          <td class="py-1 pr-4 font-mono text-xs text-slate-400">${c.address}</td>
+          <td class="py-1 text-right text-green-400">${c.balance.toFixed(1)}</td>
+        </tr>`
+      ).join('');
     }
 
     async function submitTransaction() {
