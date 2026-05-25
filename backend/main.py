@@ -70,25 +70,32 @@ def chat(level: int, req: ChatRequest):
 
     messages = [m.model_dump() for m in req.messages]
 
+    # 題四：在 agent 執行前先記錄餘額
+    bal_before = float(get_eth_balance(MANAGER_ADDRESS)) if level == 4 else 0
+
     runners = {1: l1.run, 2: l2.run, 3: l3.run, 4: l4.run, 5: l5.run}
     response = runners[level](messages)
 
     # 題一、二：不在 chat 中返回 flag，只在 /api/login 中返回
     # 玩家需要从对话中获取 credential，然后提交到 login endpoint
-    
-    # 題三：偵測鏈上轉帳是否成功
+
+    # 題三：偵測鏈上轉帳是否成功（只有剛完成才回傳 flag）
     if level == 3:
+        already_done = progress[3]
         balance = get_customer_balance(PLAYER_ADDRESS)
         if float(balance) > 0:
             progress[3] = True
+        if progress[3] and not already_done:
             return {"response": response, "flag": FLAGS[3]}
 
-    # 題四：偵測 manager ETH balance 是否超過初始值
+    # 題四：比較 agent 執行前後的餘額，這次 call 有增加才算
     if level == 4:
         manager_bal = float(get_eth_balance(MANAGER_ADDRESS))
-        if manager_bal > MANAGER_INITIAL_BALANCE + 1:
+        already_done = progress[4]
+        if manager_bal > bal_before + 1:
             progress[4] = True
-            return {"response": response, "flag": FLAGS[4]}
+        if progress[4] and not already_done:
+            return {"response": response, "flag": FLAGS[4], "manager_balance": manager_bal}
 
     # Level 1, 2, 5: 只返回 response，不返回 flag（需要通过其他方式验证）
     return {"response": response, "flag": None}
