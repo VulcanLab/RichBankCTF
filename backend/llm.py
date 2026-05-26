@@ -9,10 +9,10 @@ def get_llm(tools=None):
     if provider == "openai":
         from langchain_openai import ChatOpenAI
         kwargs = {
-            "api_key":  os.getenv("OPENAI_API_KEY"),
-            "model":    os.getenv("OPENAI_MODEL", "gpt-4o"),
+            "api_key":  os.getenv("LLM_API_KEY"),
+            "model":    os.getenv("LLM_MODEL", "meta/llama-3.3-70b-instruct"),
         }
-        base_url = os.getenv("OPENAI_BASE_URL", "")
+        base_url = os.getenv("LLM_BASE_URL", "")
         if base_url:
             kwargs["base_url"] = base_url
         llm = ChatOpenAI(**kwargs)

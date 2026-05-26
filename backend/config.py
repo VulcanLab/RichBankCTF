@@ -14,9 +14,9 @@ game_state_path = os.getenv("GAME_STATE_PATH", "/shared/game_state.env")
 if os.path.exists(game_state_path):
     load_dotenv(game_state_path, override=True)
 
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
-OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o")
+LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")
+LLM_MODEL    = os.getenv("LLM_MODEL", "meta/llama-3.3-70b-instruct")
 ANVIL_RPC_URL     = os.getenv("ANVIL_RPC_URL", "http://localhost:8545")
 
 VAULT_ADDRESS   = os.getenv("VAULT_ADDRESS", "")
