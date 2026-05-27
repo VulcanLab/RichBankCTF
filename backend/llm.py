@@ -6,7 +6,7 @@ load_dotenv()
 def get_llm(tools=None):
     provider = os.getenv("LLM_PROVIDER", "openai").lower()
 
-    if provider == "openai":
+    if provider in ("openai", "nvidia"):
         from langchain_openai import ChatOpenAI
         kwargs = {
             "api_key":  os.getenv("LLM_API_KEY"),
