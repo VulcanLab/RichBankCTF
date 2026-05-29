@@ -21,10 +21,19 @@ Copy and edit the environment file:
 
 ```bash
 cp backend/.env.example backend/.env
-# Fill in your OPENAI_API_KEY and OPENAI_MODEL
+# Fill in your LLM_API_KEY
 ```
 
----
+### Recommended: NVIDIA NIM (Free)
+
+If you want a free and reliable LLM backend, use NVIDIA NIM:
+
+1. Go to [build.nvidia.com](https://build.nvidia.com) and create an account.
+2. Search for `meta/llama-3.3-70b-instruct` and click **Get API Key**.
+3. Copy the API key starting with `nvapi-...`.
+4. Open `backend/.env` and paste the key into `LLM_API_KEY`.
+
+
 
 ## Starting the Game
 
